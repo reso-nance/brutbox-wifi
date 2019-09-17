@@ -4,29 +4,15 @@
 #include <ArduinoOTA.h>
 #include <OSCMessage.h>
 
-struct button {
-  String name;
-  uint8_t pin;
-  bool lastState;
-  bool currentState;
-  long lastTriggered;
-};
-
 const String MACaddress = WiFi.macAddress();
-const String hostname = "digital_"+MACaddress;
+const String hostname = "analog_"+MACaddress;
 static char* PSK = "malinette666";
 static char* SSID = "malinette";
 static const uint16_t oscOutPort = 8000;
 IPAddress targetIP = IPAddress({10,0,0,255});
 static const uint8_t rgbPins[] = {D8, D7, D6};
-static const uint8_t debounce = 10; // in milliseconds
-
-button buttons[] = { button {"fish", D1 , LOW, HIGH, millis()},
-                     button {"dragon", D2 , LOW, HIGH, millis()},
-                     button {"bird", D5 , LOW, HIGH, millis()},
-                     button {"elephant", D6 , LOW, HIGH, millis()} 
-            };
-uint8_t buttonsCount = sizeof(buttons)/sizeof(button);
+static const uint8_t tolerance = 2;
+uint16_t lastValue = 0;
 
 WiFiUDP udpserver;
 
@@ -36,31 +22,26 @@ void setup() {
   char hostnameAsChar[hostname.length()+1];
   hostname.toCharArray(hostnameAsChar, hostname.length()+1);
   connectToWifi(hostnameAsChar, SSID, PSK);
-  for (uint8_t i=0; i<buttonsCount; i++) { pinMode(buttons[i].pin, INPUT_PULLUP); }
 }
 
 void loop() {
-   for (uint8_t i=0; i<buttonsCount; i++) {
-    buttons[i].currentState = digitalRead(buttons[i].pin);
-    long currentTime = millis();
-    if (buttons[i].currentState != buttons[i].lastState && currentTime - buttons[i].lastTriggered > debounce) {
-      buttons[i].lastTriggered =  currentTime;
-      sendData(targetIP, oscOutPort, i);
-      Serial.println("sent status for button "+buttons[i].name);
-    }
-    buttons[i].lastState = buttons[i].currentState;
-   }
-   ArduinoOTA.handle();
-   yield();
-   
+  int currentValue = analogRead(0);
+  //Serial.println(currentValue);
+  if (currentValue < lastValue-tolerance || currentValue > lastValue+tolerance) {
+    sendData(targetIP,oscOutPort, currentValue);
+    //Serial.print("new value : "); Serial.println(currentValue);
+    lastValue = currentValue;
+  }
+  yield();
+  ArduinoOTA.handle();
 }
 
-void sendData(IPAddress targetIP, const uint16_t port, uint8_t buttonIndex) {
-  String oscAddress = "/"+hostname+"/"+buttons[buttonIndex].name;
+void sendData(IPAddress targetIP, const uint16_t port, uint16_t value) {
+  String oscAddress = "/"+hostname;
   char oscAddressChar[oscAddress.length()+1];
   oscAddress.toCharArray(oscAddressChar, oscAddress.length()+1);
   OSCMessage* message = new OSCMessage(oscAddressChar);
-  message->add((float) !buttons[buttonIndex].currentState); // inverted because of the pullups
+  message->add((float) value/1024.0f);
   sendOsc(message, targetIP, port);
   delete(message);
   yield();

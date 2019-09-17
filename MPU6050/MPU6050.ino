@@ -60,6 +60,7 @@ void loop() {
         delay(1);
     }
     processMPU6050();
+    ArduinoOTA.handle();
 }
 
 void initialiseMPU6050(const int16_t gyroOffsets[3],const int16_t accelOffsets[3] ){

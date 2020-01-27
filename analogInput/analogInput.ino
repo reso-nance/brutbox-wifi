@@ -4,8 +4,8 @@
 #include <ArduinoOTA.h>
 #include <OSCMessage.h>
 
-const String MACaddress = WiFi.macAddress();
-const String hostname = "analog_"+MACaddress;
+const String MACaddress = WiFi.macAddress().substring(9); // get the unique MAC address of this ESP to avoid conflicting names, remove the manufacturer ID (first 9 characters) from the MAC
+String hostname = "analog_"+MACaddress; // 
 static char* PSK = "malinette666";
 static char* SSID = "malinette";
 static const uint16_t oscOutPort = 8000;
@@ -19,6 +19,7 @@ WiFiUDP udpserver;
 void setup() {
   Serial.begin(115200);
   for (uint8_t i=0; i<3; i++) {pinMode(rgbPins[i], OUTPUT);}
+  hostname.replace(":", ""); // remove the : from the MAC address
   char hostnameAsChar[hostname.length()+1];
   hostname.toCharArray(hostnameAsChar, hostname.length()+1);
   connectToWifi(hostnameAsChar, SSID, PSK);

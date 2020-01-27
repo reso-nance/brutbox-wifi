@@ -12,7 +12,7 @@
 //#define RAW_GYROSCOPE
 //#define JERK
 
-const String MACaddress = WiFi.macAddress();
+const String MACaddress = WiFi.macAddress().substring(9); // remove the manufacturer ID (first 9 characters) from the MAC
 const String hostname = "acc_"+MACaddress;
 static char* PSK = "malinette666";
 static char* SSID = "malinette";
@@ -46,6 +46,7 @@ void setup() {
   Serial.begin(115200);
   for (uint8_t i=0; i<3; i++) {pinMode(rgbPins[i], OUTPUT);}
   char hostnameAsChar[hostname.length()+1];
+  hostname.replace(":", "") // remove the : from the MAC address
   hostname.toCharArray(hostnameAsChar, hostname.length()+1);
   connectToWifi(hostnameAsChar, SSID, PSK);
   initialiseMPU6050(gyroOffsets, accelOffsets);

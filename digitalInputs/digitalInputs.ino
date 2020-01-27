@@ -12,10 +12,10 @@ struct button {
   long lastTriggered;
 };
 
-const String MACaddress = WiFi.macAddress();
-const String hostname = "digital_"+MACaddress;
-static char* PSK = "malinette666";
-static char* SSID = "malinette";
+const String MACaddress = WiFi.macAddress().substring(9); // remove the manufacturer ID (first 9 characters) from the MAC
+String hostname = "digital_"+MACaddress;
+static char* PSK = "zincZN30!";
+static char* SSID = "ZINC FABLAB";
 static const uint16_t oscOutPort = 8000;
 IPAddress targetIP = IPAddress({10,0,0,255});
 static const uint8_t rgbPins[] = {D8, D7, D6};
@@ -33,6 +33,7 @@ WiFiUDP udpserver;
 void setup() {
   Serial.begin(115200);
   for (uint8_t i=0; i<3; i++) {pinMode(rgbPins[i], OUTPUT);}
+  hostname.replace(":", ""); // remove the : from the MAC address
   char hostnameAsChar[hostname.length()+1];
   hostname.toCharArray(hostnameAsChar, hostname.length()+1);
   connectToWifi(hostnameAsChar, SSID, PSK);

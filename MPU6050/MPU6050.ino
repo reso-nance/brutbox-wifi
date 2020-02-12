@@ -11,6 +11,8 @@
 //#define RAW_ACCELEROMETER
 //#define RAW_GYROSCOPE
 //#define JERK
+#define LOOP_DELAY 8
+#define XYZ_THREESHOLD 0.01f
 
 const String MACaddress = WiFi.macAddress();
 const String hostname = "acc_"+MACaddress;
@@ -36,10 +38,12 @@ VectorFloat gravity;
 float ypr[3];
 int16_t ax, ay, az;
 int16_t gx, gy, gz;
+float lastSentXYZ[]={0,0,0};
 float jerk;
 volatile bool mpuInterrupt = false;     // indicates whether MPU interrupt pin has gone high
 uint8_t mpuIntStatus;   // holds actual interrupt status byte from MPU
 bool dmpReady = false;  // set true if DMP init was successful
+long lastSentTimer=0;
 void initialiseMPU6050(const int16_t a[3], const int16_t b[3]);
 void dmpDataReady();
 
@@ -119,23 +123,32 @@ void processMPU6050(){
         mpu.dmpGetGravity(&gravity,&q);
         mpu.dmpGetYawPitchRoll(ypr,&q,&gravity);    
         mpu.getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
+        #ifdef JERK
         jerk = (abs(gx)+abs(gy)+abs(gz))/maxJerk;
         if (jerk > 1) jerk=1.0f;
+        #endif
     }
 }
 
 void sendData(IPAddress targetIP, const uint16_t port) {
-  
+  if (millis()-lastSentTimer<LOOP_DELAY) return;
+
   #ifdef XYZ
   String oscAddress = "/"+hostname+"/XYZ";
   char oscAddressChar[oscAddress.length()+1];
   oscAddress.toCharArray(oscAddressChar, oscAddress.length()+1);
   OSCMessage* message = new OSCMessage(oscAddressChar);
+  bool needToBeSent = false;
   for (uint8_t i=0; i<3; i++) {
     float value = (float) (ypr[i]*180/PI);
     value = (180.0f + value) /360.0f;
-    message->add((float) value);}
-  sendOsc(message, targetIP, port);
+    if (needToBeSent || value > lastSentXYZ[i]+XYZ_THREESHOLD || value< lastSentXYZ[i]+XYZ_THREESHOLD) {
+      message->add((float) value);
+      needToBeSent = true;
+      lastSentXYZ[i] = value;
+    }
+  }
+  if (needToBeSent) sendOsc(message, targetIP, port);
   delete(message);
   yield();
   #endif
@@ -176,6 +189,8 @@ void sendData(IPAddress targetIP, const uint16_t port) {
   delete(message);
   yield;
   #endif
+
+  lastSentTimer = millis();
 }
 
 void sendOsc(OSCMessage *msg, IPAddress ip, const uint16_t port ){

@@ -3,8 +3,8 @@
 #include <WiFiUdp.h>
 #include <ArduinoOTA.h>
 #include <OSCMessage.h>
-#include <I2Cdev.h>
-#include <Wire.h>
+#include "I2Cdev.h"
+//#include <Wire.h>
 #include "MPU6050_6Axis_MotionApps20.h"
 
 #define XYZ
@@ -12,7 +12,7 @@
 //#define RAW_GYROSCOPE
 //#define JERK
 
-const String MACaddress = WiFi.macAddress().substring(9); // remove the manufacturer ID (first 9 characters) from the MAC
+const String MACaddress = WiFi.macAddress();
 const String hostname = "acc_"+MACaddress;
 static char* PSK = "malinette666";
 static char* SSID = "malinette";
@@ -40,13 +40,13 @@ float jerk;
 volatile bool mpuInterrupt = false;     // indicates whether MPU interrupt pin has gone high
 uint8_t mpuIntStatus;   // holds actual interrupt status byte from MPU
 bool dmpReady = false;  // set true if DMP init was successful
-
+void initialiseMPU6050(const int16_t a[3], const int16_t b[3]);
+void dmpDataReady();
 
 void setup() {
   Serial.begin(115200);
   for (uint8_t i=0; i<3; i++) {pinMode(rgbPins[i], OUTPUT);}
   char hostnameAsChar[hostname.length()+1];
-  hostname.replace(":", "") // remove the : from the MAC address
   hostname.toCharArray(hostnameAsChar, hostname.length()+1);
   connectToWifi(hostnameAsChar, SSID, PSK);
   initialiseMPU6050(gyroOffsets, accelOffsets);
@@ -64,7 +64,12 @@ void loop() {
     ArduinoOTA.handle();
 }
 
-void initialiseMPU6050(const int16_t gyroOffsets[3],const int16_t accelOffsets[3] ){
+
+void IRAM_ATTR dmpDataReady() {
+    mpuInterrupt = true;
+}
+
+void IRAM_ATTR initialiseMPU6050(const int16_t gyroOffsets[3],const int16_t accelOffsets[3] ){
   Wire.begin();
     Wire.setClock(400000L);
     mpu.initialize();
@@ -117,10 +122,6 @@ void processMPU6050(){
         jerk = (abs(gx)+abs(gy)+abs(gz))/maxJerk;
         if (jerk > 1) jerk=1.0f;
     }
-}
-
-void dmpDataReady() {
-    mpuInterrupt = true;
 }
 
 void sendData(IPAddress targetIP, const uint16_t port) {

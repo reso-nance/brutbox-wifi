@@ -1,43 +1,53 @@
+/*  Copyright 2019 Reso-nance Numérique <laurent@reso-nance.org>
+#  
+#  This program is free software; you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation; either version 2 of the License, or
+#  (at your option) any later version.
+#  
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#  
+#  You should have received a copy of the GNU General Public License
+#  along with this program; if not, write to the Free Software
+#  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
+#  MA 02110-1301, USA.
+#  
+#  For testing purposes, this sketch waits for a random int
+#  between 0 and 1024 followed by "/n" to be sent to the serial port.
+#  The esp8266 respond by sending an osc message back containing the same int.
+#  Most of this code is keeped as similar as possible to the rest of the
+#  brutbox-wifi code to ensure this simulation stays as close to production conditions as possible
+*/
+
 #include <ESP8266WiFi.h>
 #include <ESP8266mDNS.h>
 #include <WiFiUdp.h>
 #include <ArduinoOTA.h>
 #include <OSCMessage.h>
 
-//#define SERIAL_DEBUG
-//#define SHOCK_THREESHOLD 154
 //#define MAX_RATE 10
-#define LOOP_DELAY 8 // keep this > 2 to avoid malformed OSC messages
-
-#ifdef SERIAL_DEBUG
-  #define debugPrint(x)  Serial.print (x)
-  #define debugPrintln(x)  Serial.println (x)
-#else
-  #define debugPrint(x)
-  #define debugPrintln(x)
-#endif
-
+#define debugPrint(x)  Serial.print (x)
+#define debugPrintln(x)  Serial.println (x)
+  
 const String MACaddress = WiFi.macAddress().substring(9); // get the unique MAC address of this ESP to avoid conflicting names, remove the manufacturer ID (first 9 characters) from the MAC
-String hostname = "potard_"+MACaddress; // 
+String hostname = "pression_"+MACaddress; // 
 static char* PSK = "malinette666";
 //static char* PSK = "apacitron123";
 static char* SSID = "malinette";
 //static char* SSID = "rirififiloulou";
 static const uint16_t oscOutPort = 8000;
-IPAddress targetIP = IPAddress({10,0,0,255});
+IPAddress targetIP = IPAddress({10,0,0,75});
 static const uint8_t rgbPins[] = {D8, D7, D6};
 static const uint8_t tolerance = 10;
 //long lastSent = 0;
 uint16_t lastValue = 0;
 WiFiUDP udpserver;
-#ifdef SHOCK_THREESHOLD
-bool isShock = false;
-#endif
 
 void setup() {
-  #ifdef SERIAL_DEBUG
   Serial.begin(115200);
-  #endif
   for (uint8_t i=0; i<3; i++) {pinMode(rgbPins[i], OUTPUT);}
   hostname.replace(":", ""); // remove the : from the MAC address
   char hostnameAsChar[hostname.length()+1];
@@ -46,23 +56,16 @@ void setup() {
 }
 
 void loop() {
-  //if (millis()-lastSent>MAX_RATE) {
-    int currentValue = analogRead(0);
-    //debugPrintln(currentValue);
-    if (currentValue != lastValue) {
-      if (currentValue < lastValue-tolerance || currentValue > lastValue+tolerance || currentValue < tolerance ) {
-        #ifdef SHOCK_THREESHOLD
-        isShock = false;
-        if (currentValue - lastValue > SHOCK_THREESHOLD) isShock = true;
-        #endif
-        sendData(targetIP,oscOutPort, currentValue);
-        //debugPrint("new value : "); debugPrintln(currentValue);
-        lastValue = currentValue;
-      }
-    }
- // }
+   while (Serial.available() > 0) {
+     int code = Serial.parseInt();
+     if (Serial.read() == '\n') {
+      sendData(targetIP, oscOutPort, code);
+      Serial.flush();
+     }
+     //processIncomingByte(Serial.read());
+   }
   yield();
-  delay(LOOP_DELAY); // remove this delay and everything will fall apart
+  delay(10); // remove this delay and everything will fall apart
   ArduinoOTA.handle();
 }
 
@@ -72,15 +75,9 @@ void sendData(IPAddress targetIP, const uint16_t port, uint16_t value) {
   char oscAddressChar[oscAddress.length()+1];
   oscAddress.toCharArray(oscAddressChar, oscAddress.length()+1);
   OSCMessage* message = new OSCMessage(oscAddressChar);
-  message->add((float) value/1023.0f);
-  #ifdef SHOCK_THREESHOLD
-  if (isShock) message->add((float) value/1023.0f);
-  debugPrintln("shock");
-  #endif
+  message->add(value);
   sendOsc(message, targetIP, port);
-  //message->empty();
   delete(message);
-  //lastSent = millis();
 }
 
 void sendOsc(OSCMessage *msg, IPAddress ip, const uint16_t port ){

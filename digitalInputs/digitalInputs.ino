@@ -14,10 +14,10 @@ struct button {
 
 const String MACaddress = WiFi.macAddress().substring(9); // remove the manufacturer ID (first 9 characters) from the MAC
 String hostname = "digital_"+MACaddress;
-static char* PSK = "zincZN30!";
-static char* SSID = "ZINC FABLAB";
+static char* PSK = "malinette666";
+static char* SSID = "malinette";
 static const uint16_t oscOutPort = 8000;
-IPAddress targetIP = IPAddress({10,0,0,255});
+IPAddress targetIP = IPAddress({10,0,120,255});
 static const uint8_t rgbPins[] = {D8, D7, D6};
 static const uint8_t debounce = 10; // in milliseconds
 

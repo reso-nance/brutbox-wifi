@@ -1,0 +1,7 @@
+# this file contains the mapping of OSC addresses to CC number
+# the expected OSC path can be written here follow by the corresponding
+# CC number, separated by ->
+# ex : /myDevice/myOSC -> 12
+
+/test/debug -> 12
+/bla -> A

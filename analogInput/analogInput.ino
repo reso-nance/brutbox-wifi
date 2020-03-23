@@ -26,7 +26,7 @@ static char* SSID = "malinette";
 static const uint16_t oscOutPort = 8000;
 IPAddress targetIP = IPAddress({10,0,0,255});
 static const uint8_t rgbPins[] = {D8, D7, D6};
-static const uint8_t tolerance = 10;
+static const uint8_t tolerance = 30;
 //long lastSent = 0;
 uint16_t lastValue = 0;
 WiFiUDP udpserver;

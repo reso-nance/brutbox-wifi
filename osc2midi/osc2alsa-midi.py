@@ -32,12 +32,19 @@ listenToOSC = False
 midiout = None
 definitionFile = "OSCaddress.txt"
 oscDefinitions = {}
+availableCCs = [i for i in range(10,128)]
 
 def OSCcallback(path, args, types, src):
     """called each time an OSC message is received."""
+    global oscDefinitions, availableCCs
     value =int(args[0]/1024*127) # the first value is converted to 0~127
     if path in oscDefinitions : sendMidi(oscDefinitions[path], value)
-    else : print("received message %s not in definitions" % path)
+    else : 
+        newCCattributed = availableCCs.pop(0)
+        oscDefinitions.update({path:newCCattributed})
+        with open(definitionFile, "a") as f :
+            f.write("\n#automatically added :\n%s -> %i" % (path, newCCattributed))
+        print("received message %s not in definitions, attributed CC#%i" % (path, newCCattributed))
 
 def listen():
     """blocking function listening to OSC messages.
@@ -68,11 +75,13 @@ def initAlsaMIDI():
 def readOSCdefinitions(definitionFile):
     """ this function reads the definition file and returns a dict containing {oscPaths:CCvalue}
     the definition file is a simple text file using spaces as separator. Lines containing a # are ignored"""
+    global availableCCs
     oscDict={}
     print("reading definitions file %s..."  % definitionFile)
     if not os.path.exists(definitionFile):
         print("  ERROR : unable to find definition file %s" % definitionFile)
         raise SystemError
+
     with open(definitionFile, "rt") as defFile :
         for line in defFile.readlines():
             line = line.replace(" ","").replace("\n","") # strip down spaces and \n
@@ -84,6 +93,7 @@ def readOSCdefinitions(definitionFile):
                     print( "  ERROR : invalid CC number for %s"% oscAddress)
                     continue
                 oscDict.update({oscAddress:CCnumber})
+                availableCCs.pop(CCnumber)
                 print("  added %s -> CC#%i" % (oscAddress, CCnumber))
             except (ValueError, StopIteration) as e :
                 print("  ERROR reading line %s : " %line, e)

@@ -4,10 +4,11 @@
 #include <ArduinoOTA.h>
 #include <OSCMessage.h>
 
-//#define SERIAL_DEBUG
-//#define SHOCK_THREESHOLD 154
-//#define MAX_RATE 10
-#define LOOP_DELAY 8 // keep this > 2 to avoid malformed OSC messages
+//#define SERIAL_DEBUG // if defined debug messages will be printed via the serial port @115200 bauds
+//#define SHOCK_THREESHOLD 154 // if defined, a /shock message will be sent every time the value changes drastically
+#define MAX_RATE 30 // minimum time between two OSC messages (in milliseconds). If set to high or too low (<30ms), some latency will appear
+#define TOLERANCE 10 // minimal change (0~1023) that will trigger an OSC message, depends on the sensor (~5 for a potentiometer or an FSR, ~40 for a sharp distance sensor, ~10 for an LDR)
+#define THIS_BB_NAME "lumière" // name of this brutbox, will be used in OSC path and hostname
 
 #ifdef SERIAL_DEBUG
   #define debugPrint(x)  Serial.print (x)
@@ -16,9 +17,10 @@
   #define debugPrint(x)
   #define debugPrintln(x)
 #endif
+#define OSCPREFIX(x) x"_"
 
 const String MACaddress = WiFi.macAddress().substring(9); // get the unique MAC address of this ESP to avoid conflicting names, remove the manufacturer ID (first 9 characters) from the MAC
-String hostname = "potard_"+MACaddress; // 
+String hostname = OSCPREFIX(THIS_BB_NAME)+MACaddress; // 
 static char* PSK = "malinette666";
 //static char* PSK = "apacitron123";
 static char* SSID = "malinette";
@@ -26,8 +28,8 @@ static char* SSID = "malinette";
 static const uint16_t oscOutPort = 8000;
 IPAddress targetIP = IPAddress({10,0,0,255});
 static const uint8_t rgbPins[] = {D8, D7, D6};
-static const uint8_t tolerance = 30;
 //long lastSent = 0;
+unsigned long nextPeriod = 0;
 uint16_t lastValue = 0;
 WiFiUDP udpserver;
 #ifdef SHOCK_THREESHOLD
@@ -43,14 +45,16 @@ void setup() {
   char hostnameAsChar[hostname.length()+1];
   hostname.toCharArray(hostnameAsChar, hostname.length()+1);
   connectToWifi(hostnameAsChar, SSID, PSK);
+  nextPeriod = millis();
+  
 }
 
 void loop() {
-  //if (millis()-lastSent>MAX_RATE) {
+  if (millis()>=nextPeriod) {
     int currentValue = analogRead(0);
-    //debugPrintln(currentValue);
+    if (currentValue < TOLERANCE) currentValue = 0;
     if (currentValue != lastValue) {
-      if (currentValue < lastValue-tolerance || currentValue > lastValue+tolerance || currentValue < tolerance ) {
+      if (currentValue < lastValue-TOLERANCE || currentValue > lastValue+TOLERANCE) {
         #ifdef SHOCK_THREESHOLD
         isShock = false;
         if (currentValue - lastValue > SHOCK_THREESHOLD) isShock = true;
@@ -60,9 +64,9 @@ void loop() {
         lastValue = currentValue;
       }
     }
- // }
+    nextPeriod = millis()+MAX_RATE;
+  }
   yield();
-  delay(LOOP_DELAY); // remove this delay and everything will fall apart
   ArduinoOTA.handle();
 }
 

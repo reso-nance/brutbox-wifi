@@ -25,19 +25,24 @@ pdsend must be in the $PATH of the user invoking this script
 """
 
 import liblo, threading, time, rtmidi, os
-from rtmidi.midiconstants import CONTROL_CHANGE, NOTE_ON, NOTE_OFF
-pdCommand = "pd"
-OSClistenPort = 8000
-listenToOSC = False
-midiout = None
-definitionFile = "OSCaddress.txt"
-oscDefinitions = {}
-availableCCs = [i for i in range(10,128)]
+from rtmidi.midiconstants import CONTROL_CHANGE
+pdCommand = None # set the puredata command here if you want this script to launch pd ex:"pd -myoption1 -myoption2"
+OSClistenPort = 8000 # must match the OSC clients port
+listenToOSC = False # used to stop the OSCserver thread
+midiout = None # rt-midi object
+definitionFile = "OSCaddress.txt" # will be created if needed
+oscDefinitions = {} # will contain {OSCpath : CCnumber} for every known OSC message
+availableCCs = [i for i in range(128)] # used to auto assign undefined OSC messages
+defaultDefinitions = """# this file contains the mapping of OSC addresses to CC number
+# the expected OSC path can be written here follow by the corresponding
+# CC number, separated by "->"
+# ex : /myDevice/myOSC -> 12
+"""
 
 def OSCcallback(path, args, types, src):
     """called each time an OSC message is received."""
     global oscDefinitions, availableCCs
-    value =int(args[0]/1024*127) # the first value is converted to 0~127
+    value =int(args[0]*127) # the first (float) value is converted to 0~127
     if path in oscDefinitions : sendMidi(oscDefinitions[path], value)
     else : 
         newCCattributed = availableCCs.pop(0)
@@ -48,7 +53,7 @@ def OSCcallback(path, args, types, src):
 
 def listen():
     """blocking function listening to OSC messages.
-    A callback is fired each time a message os received """
+    A callback is fired each time a message is received """
     try:
         server = liblo.Server(OSClistenPort)
         print("listening to incoming OSC on port %i" % OSClistenPort)
@@ -60,6 +65,7 @@ def listen():
         server.recv(1)
 
 def initAlsaMIDI():
+    """opens the alsa-midi port created by PureData, named "Pure Data Midi-In 1" """
     global midiout
     midiout = rtmidi.MidiOut()
     try : portIndex = next(i for i, p in enumerate(midiout.get_ports()) if "Pure Data Midi-In" in p)
@@ -73,14 +79,15 @@ def initAlsaMIDI():
     print("successfully opened Puredata MIDI port")
 
 def readOSCdefinitions(definitionFile):
-    """ this function reads the definition file and returns a dict containing {oscPaths:CCvalue}
+    """ reads the definition file and returns a dict containing {oscPaths:CCvalue}
     the definition file is a simple text file using spaces as separator. Lines containing a # are ignored"""
     global availableCCs
     oscDict={}
     print("reading definitions file %s..."  % definitionFile)
     if not os.path.exists(definitionFile):
-        print("  ERROR : unable to find definition file %s" % definitionFile)
-        raise SystemError
+        print("  unable to find definition file %s, creating a new one" % definitionFile)
+        with open(definitionFile, "wt") as defFile :
+            defFile.write(defaultDefinitions) # write a header into the empty definitions file
 
     with open(definitionFile, "rt") as defFile :
         for line in defFile.readlines():
@@ -92,28 +99,33 @@ def readOSCdefinitions(definitionFile):
                 if CCnumber not in range(128) : 
                     print( "  ERROR : invalid CC number for %s"% oscAddress)
                     continue
+                elif CCnumber not in availableCCs :
+                    print("  ERROR : the CC number for %s has already been assigned" % oscAddress)
+                    continue
                 oscDict.update({oscAddress:CCnumber})
-                availableCCs.pop(CCnumber)
+                availableCCs.remove(CCnumber)
                 print("  added %s -> CC#%i" % (oscAddress, CCnumber))
             except (ValueError, StopIteration) as e :
                 print("  ERROR reading line %s : " %line, e)
     return oscDict
 
 def sendMidi(ccNumber, value):
-    """sends the requested midi CC message to puredata"""
+    """sends the requested midi CC message to puredata using rt-midi"""
     global midiout
-    print("set CC#%i to %i" %(ccNumber, value))
+    # print("set CC#%i to %i" %(ccNumber, value))
     midiout.send_message([CONTROL_CHANGE, ccNumber, value])
 
 if __name__ == '__main__':
+    pidofPD = lambda: os.popen("pidof pd").read().replace("\n","")
+    if pidofPD() : print ("Puredata is already running")
+    elif pdCommand :
+        pdCommand += ' -alsamidi  -midiaddindev "ALSA MIDI device #1" &'
+        print("lauching Puredata : "+pdCommand)
+        os.system(pdCommand)
+        time.sleep(3)
+    if not pidofPD() : raise SystemError("Puredata is not running. Launch it manually or set the pdCommand a the beginning of this script.")
     print("opening puredata MIDI port :")
     initAlsaMIDI()
-    # with midiout :
-    #     midiout.send_message([NOTE_ON, 42, 100])
-    #     time.sleep(1)
-    #     midiout.send_message([NOTE_OFF, 42])
-    #     time.sleep(1)
-    #     midiout.send_message([CONTROL_CHANGE, 12, 100])
     print("reading the OSC definition file...")
     oscDefinitions = readOSCdefinitions(definitionFile)
     print("starting the OSC server thread ...")
@@ -126,5 +138,8 @@ if __name__ == '__main__':
             listenToOSC = False
             print("closing the midi output...")
             del midiout
+            if pidofPD() and pdCommand : 
+                print("closing Puredata ...")
+                os.system("kill "+pidofPD())
             print("bye !")
             raise SystemExit

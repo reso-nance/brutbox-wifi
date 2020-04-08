@@ -15,7 +15,7 @@ echo "
 echo "
 updating the system :"
 apt-get update||exit 1
-apt-get -y dist-upgrade||exit 1
+# apt-get -y dist-upgrade||exit 1
 echo "
 installing .deb packages :"
 apt-get -y --fix-missing install python3-pip python3-dev liblo-dev libasound2-dev ||exit 1

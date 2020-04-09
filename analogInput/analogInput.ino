@@ -7,8 +7,8 @@
 //#define SERIAL_DEBUG // if defined debug messages will be printed via the serial port @115200 bauds
 //#define SHOCK_THREESHOLD 154 // if defined, a /shock message will be sent every time the value changes drastically
 #define MAX_RATE 30 // minimum time between two OSC messages (in milliseconds). If set to high or too low (<30ms), some latency will appear
-#define TOLERANCE 10 // minimal change (0~1023) that will trigger an OSC message, depends on the sensor (~5 for a potentiometer or an FSR, ~40 for a sharp distance sensor, ~10 for an LDR)
-#define THIS_BB_NAME "lumière" // name of this brutbox, will be used in OSC path and hostname
+#define TOLERANCE 5 // minimal change (0~1023) that will trigger an OSC message, depends on the sensor (min ~5 for a potentiometer or an FSR, ~40 for a sharp distance sensor, ~10 for an LDR)
+#define THIS_BB_NAME "potard" // name of this brutbox, will be used in OSC path and hostname
 
 #ifdef SERIAL_DEBUG
   #define debugPrint(x)  Serial.print (x)
@@ -60,11 +60,12 @@ void loop() {
         if (currentValue - lastValue > SHOCK_THREESHOLD) isShock = true;
         #endif
         sendData(targetIP,oscOutPort, currentValue);
+        nextPeriod = millis()+MAX_RATE;
         //debugPrint("new value : "); debugPrintln(currentValue);
         lastValue = currentValue;
       }
     }
-    nextPeriod = millis()+MAX_RATE;
+    //nextPeriod = millis()+MAX_RATE;
   }
   yield();
   ArduinoOTA.handle();

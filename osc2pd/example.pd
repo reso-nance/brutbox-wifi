@@ -1,13 +1,13 @@
-#N canvas 498 233 450 300 10;
+#N canvas 879 160 450 300 10;
 #X obj 223 182 mtof;
 #X obj 223 205 osc~;
 #X obj 223 228 dac~;
 #X obj 184 149 hsl 128 15 0 127 0 0 empty empty empty -2 -8 0 10 -262144
--1 -1 0 1;
+-1 -1 2533 1;
 #X obj 61 28 netreceive -u 10000;
 #X obj 181 124 * 127;
 #X obj 61 51 route /pression_26A0DA /lumière_26A061 /pression_32575C
-/distance_264F32;
+/distance_264F32 /potard_266E22;
 #X connect 0 0 1 0;
 #X connect 1 0 2 0;
 #X connect 3 0 0 0;
@@ -17,3 +17,4 @@
 #X connect 6 1 5 0;
 #X connect 6 2 5 0;
 #X connect 6 3 5 0;
+#X connect 6 4 5 0;

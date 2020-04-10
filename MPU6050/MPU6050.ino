@@ -11,11 +11,21 @@
 //#define RAW_ACCELEROMETER
 //#define RAW_GYROSCOPE
 //#define JERK
-#define LOOP_DELAY 8
-#define XYZ_THREESHOLD 0.01f
+#define XYZ_THREESHOLD 0.01f // minimal change that will trigger an OSC message (float, in g)
+#define MAX_RATE 30 // minimum time between two OSC messages (in milliseconds). If set to high or too low (<30ms), some latency will appear
+#define THIS_BB_NAME "acc" // name of this brutbox, will be used in OSC path and hostname
+
+#ifdef SERIAL_DEBUG
+  #define debugPrint(x)  Serial.print (x)
+  #define debugPrintln(x)  Serial.println (x)
+#else
+  #define debugPrint(x)
+  #define debugPrintln(x)
+#endif
+#define OSCPREFIX(x) x"_"
 
 const String MACaddress = WiFi.macAddress();
-const String hostname = "acc_"+MACaddress;
+const String hostname = OSCPREFIX(THIS_BB_NAME)+MACaddress;
 static char* PSK = "malinette666";
 static char* SSID = "malinette";
 static const uint16_t oscOutPort = 8000;
@@ -48,7 +58,9 @@ void initialiseMPU6050(const int16_t a[3], const int16_t b[3]);
 void dmpDataReady();
 
 void setup() {
+  #ifdef SERIAL_DEBUG
   Serial.begin(115200);
+  #endif
   for (uint8_t i=0; i<3; i++) {pinMode(rgbPins[i], OUTPUT);}
   char hostnameAsChar[hostname.length()+1];
   hostname.toCharArray(hostnameAsChar, hostname.length()+1);
@@ -92,7 +104,7 @@ void IRAM_ATTR initialiseMPU6050(const int16_t gyroOffsets[3],const int16_t acce
     attachInterrupt(digitalPinToInterrupt(interruptPin), dmpDataReady, RISING);
     mpuIntStatus = mpu.getIntStatus();
     // set our DMP Ready flag so the main loop() function knows it's okay to use it
-    Serial.println(F("DMP ready! Waiting for first interrupt..."));
+    debugPrintln(F("DMP ready! Waiting for first interrupt..."));
     dmpReady = true;
     packetSize = mpu.dmpGetFIFOPacketSize();// get expected DMP packet size for later comparison
 }
@@ -107,7 +119,7 @@ void processMPU6050(){
         // reset so we can continue cleanly
         mpu.resetFIFO();
         fifoCount = mpu.getFIFOCount();
-        Serial.println(F("FIFO overflow!"));
+        debugPrintln(F("FIFO overflow!"));
 
     // otherwise, check for DMP data ready interrupt (this should happen frequently)
     } else if (mpuIntStatus & _BV(MPU6050_INTERRUPT_DMP_INT_BIT)) {
@@ -131,7 +143,7 @@ void processMPU6050(){
 }
 
 void sendData(IPAddress targetIP, const uint16_t port) {
-  if (millis()-lastSentTimer<LOOP_DELAY) return;
+  if (millis()-lastSentTimer<MAX_RATE) return;
 
   #ifdef XYZ
   String oscAddress = "/"+hostname+"/XYZ";
@@ -139,16 +151,21 @@ void sendData(IPAddress targetIP, const uint16_t port) {
   oscAddress.toCharArray(oscAddressChar, oscAddress.length()+1);
   OSCMessage* message = new OSCMessage(oscAddressChar);
   bool needToBeSent = false;
+  float values[] = {0, 0, 0};
   for (uint8_t i=0; i<3; i++) {
-    float value = (float) (ypr[i]*180/PI);
-    value = (180.0f + value) /360.0f;
-    if (needToBeSent || value > lastSentXYZ[i]+XYZ_THREESHOLD || value< lastSentXYZ[i]+XYZ_THREESHOLD) {
-      message->add((float) value);
-      needToBeSent = true;
-      lastSentXYZ[i] = value;
+    values[i] = (float) (ypr[i]*180/PI); // radians to degrees
+    values[i] = (180.0f + values[i]) /360.0f;
+    if (needToBeSent || values[i] > lastSentXYZ[i]+XYZ_THREESHOLD || values[i] < lastSentXYZ[i]-XYZ_THREESHOLD) {
+      needToBeSent = true; // if one value has changed, we still need to send all 3 of them
     }
   }
-  if (needToBeSent) sendOsc(message, targetIP, port);
+  if (needToBeSent){
+    for (uint8_t i=0; i<3; i++) {
+      message->add((float) values[i]);
+      lastSentXYZ[i] = values[i];
+    }
+    sendOsc(message, targetIP, port);
+  }
   delete(message);
   yield();
   #endif
@@ -204,7 +221,7 @@ void sendOsc(OSCMessage *msg, IPAddress ip, const uint16_t port ){
 void connectToWifi(const char *Hostname, const char* ssid, const char* passphrase) {
   RGBled(0,0,1); // blue
   while (true) {
-    Serial.println("\n\nConnecting to " + String(ssid) + " ...");
+    debugPrintln("\n\nConnecting to " + String(ssid) + " ...");
     WiFi.mode(WIFI_STA);
     WiFi.begin(ssid, passphrase);
     WiFi.hostname(Hostname);
@@ -213,7 +230,7 @@ void connectToWifi(const char *Hostname, const char* ssid, const char* passphras
     if ( WiFi.waitForConnectResult() == WL_CONNECTED ) {break;}
   }
   RGBled(0,1,0); // green
-  Serial.println("... connected");
+  debugPrintln("... connected");
   ArduinoOTA.setPort(8266); //default OTA port
   ArduinoOTA.setHostname(Hostname);// No authentication by default, can be set with : ArduinoOTA.setPassword((const char *)"passphrase");
   ArduinoOTA.begin();

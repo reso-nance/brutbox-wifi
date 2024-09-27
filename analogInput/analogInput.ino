@@ -8,6 +8,7 @@
 //#define SHOCK_THREESHOLD 154 // if defined, a /shock message will be sent every time the value changes drastically
 #define MAX_RATE 10 // minimum time between two OSC messages (in milliseconds). If set to high or too low (<30ms), some latency will appear
 #define TOLERANCE 1 // minimal change (0~1023) that will trigger an OSC message, depends on the sensor (min ~5 for a potentiometer or an FSR, ~40 for a sharp distance sensor, ~10 for an LDR)
+// BB_NAME : press, lum, dist, rot, xyz, btn
 #define THIS_BB_NAME "potard" // name of this brutbox, will be used in OSC path and hostname
 
 #ifdef SERIAL_DEBUG

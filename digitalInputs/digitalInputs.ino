@@ -6,7 +6,7 @@
 
 //#define SERIAL_DEBUG // if defined debug messages will be printed via the serial port @115200 bauds
 #define MAX_RATE 10 // minimum time between two OSC messages (in milliseconds). If set to high or too low (<30ms), some latency will appear
-#define THIS_BB_NAME "bouton" // name of this brutbox, will be used in OSC path and hostname
+#define THIS_BB_NAME "btn" // name of this brutbox, will be used in OSC path and hostname
 
 #ifdef SERIAL_DEBUG
   #define debugPrint(x)  Serial.print (x)
@@ -64,22 +64,33 @@ void setup() {
 }
 
 void loop() {
-  if (millis()>=nextPeriod) {
-    for (uint8_t i=0; i<buttonsCount; i++) {
-      buttons[i].currentState = digitalRead(buttons[i].pin);
+  if (millis() >= nextPeriod) {
+    for (uint8_t i = 0; i < buttonsCount; i++) {
+      bool reading = digitalRead(buttons[i].pin);
       long currentTime = millis();
-      if (buttons[i].currentState != buttons[i].lastState && currentTime - buttons[i].lastTriggered > debounce) {
-        buttons[i].lastTriggered =  currentTime;
-        sendData(targetIP, oscOutPort, i);
-        nextPeriod = millis()+MAX_RATE;
-        debugPrintln("sent status for button "+buttons[i].name);
+
+      // Check if the button state has changed
+      if (reading != buttons[i].lastState) {
+        // Reset the debounce timer
+        buttons[i].lastTriggered = currentTime;
       }
-      buttons[i].lastState = buttons[i].currentState;
+
+      // Only update the current state if the state has been stable for debounce period
+      if ((currentTime - buttons[i].lastTriggered) > debounce) {
+        // If the button state has changed (debounced), send OSC message
+        if (reading != buttons[i].currentState) {
+          buttons[i].currentState = reading;
+          sendData(targetIP, oscOutPort, i);
+          nextPeriod = millis() + MAX_RATE;
+          debugPrintln("sent status for button " + buttons[i].name);
+        }
+      }
+      
+      buttons[i].lastState = reading;
     }
   }
-   ArduinoOTA.handle();
-   yield();
-   
+  ArduinoOTA.handle();
+  yield();
 }
 
 void sendData(IPAddress targetIP, const uint16_t port, uint8_t buttonIndex) {

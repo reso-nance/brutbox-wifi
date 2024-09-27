@@ -4,7 +4,7 @@
 #include <ArduinoOTA.h>
 #include <OSCMessage.h>
 
-#define SERIAL_DEBUG // if defined debug messages will be printed via the serial port @115200 bauds
+//#define SERIAL_DEBUG // if defined debug messages will be printed via the serial port @115200 bauds
 #define MAX_RATE 10 // minimum time between two OSC messages (in milliseconds). If set to high or too low (<30ms), some latency will appear
 #define THIS_BB_NAME "bouton" // name of this brutbox, will be used in OSC path and hostname
 

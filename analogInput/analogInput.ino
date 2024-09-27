@@ -6,8 +6,8 @@
 
 //#define SERIAL_DEBUG // if defined debug messages will be printed via the serial port @115200 bauds
 //#define SHOCK_THREESHOLD 154 // if defined, a /shock message will be sent every time the value changes drastically
-#define MAX_RATE 30 // minimum time between two OSC messages (in milliseconds). If set to high or too low (<30ms), some latency will appear
-#define TOLERANCE 5 // minimal change (0~1023) that will trigger an OSC message, depends on the sensor (min ~5 for a potentiometer or an FSR, ~40 for a sharp distance sensor, ~10 for an LDR)
+#define MAX_RATE 10 // minimum time between two OSC messages (in milliseconds). If set to high or too low (<30ms), some latency will appear
+#define TOLERANCE 1 // minimal change (0~1023) that will trigger an OSC message, depends on the sensor (min ~5 for a potentiometer or an FSR, ~40 for a sharp distance sensor, ~10 for an LDR)
 #define THIS_BB_NAME "potard" // name of this brutbox, will be used in OSC path and hostname
 
 #ifdef SERIAL_DEBUG
@@ -21,10 +21,8 @@
 
 const String MACaddress = WiFi.macAddress().substring(9); // get the unique MAC address of this ESP to avoid conflicting names, remove the manufacturer ID (first 9 characters) from the MAC
 String hostname = OSCPREFIX(THIS_BB_NAME)+MACaddress; // 
-static char* PSK = "malinette666";
-//static char* PSK = "apacitron123";
-static char* SSID = "malinette";
-//static char* SSID = "rirififiloulou";
+static const char* PSK = "brutbox123";
+static const char* SSID = "brutbox";
 static const uint16_t oscOutPort = 8000;
 IPAddress targetIP = IPAddress({10,0,0,255});
 static const uint8_t rgbPins[] = {D8, D7, D6};

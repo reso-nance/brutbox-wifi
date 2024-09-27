@@ -4,7 +4,7 @@
 #include <ArduinoOTA.h>
 #include <OSCMessage.h>
 
-//#define SERIAL_DEBUG // if defined debug messages will be printed via the serial port @115200 bauds
+#define SERIAL_DEBUG // if defined debug messages will be printed via the serial port @115200 bauds
 #define MAX_RATE 10 // minimum time between two OSC messages (in milliseconds). If set to high or too low (<30ms), some latency will appear
 #define THIS_BB_NAME "bouton" // name of this brutbox, will be used in OSC path and hostname
 
@@ -27,10 +27,10 @@ struct button {
 
 const String MACaddress = WiFi.macAddress().substring(9); // remove the manufacturer ID (first 9 characters) from the MAC
 String hostname = OSCPREFIX(THIS_BB_NAME)+MACaddress;
-static char* PSK = "malinette666";
-static char* SSID = "malinette";
+static const char* PSK = "brutbox123";
+static const char* SSID = "brutbox";
 static const uint16_t oscOutPort = 8000;
-IPAddress targetIP = IPAddress({10,0,120,255});
+IPAddress targetIP = IPAddress({10,0,0,255});
 static const uint8_t rgbPins[] = {D8, D7, D6};
 static const uint8_t debounce = 10; // in milliseconds
 unsigned long nextPeriod = 0;

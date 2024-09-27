@@ -6,10 +6,10 @@
 
 //#define SERIAL_DEBUG // if defined debug messages will be printed via the serial port @115200 bauds
 //#define SHOCK_THREESHOLD 154 // if defined, a /shock message will be sent every time the value changes drastically
-#define MAX_RATE 10 // minimum time between two OSC messages (in milliseconds). If set to high or too low (<30ms), some latency will appear
+#define MAX_RATE 10 // minimum time between two OSC messages (in milliseconds). If set too high or too low (<30ms), some latency will appear
 #define TOLERANCE 1 // minimal change (0~1023) that will trigger an OSC message, depends on the sensor (min ~5 for a potentiometer or an FSR, ~40 for a sharp distance sensor, ~10 for an LDR)
-// BB_NAME : press, lum, dist, rot, xyz, btn
-#define THIS_BB_NAME "potard" // name of this brutbox, will be used in OSC path and hostname
+// BB_NAME : pres, lum, dis, rot, xyz, btn
+#define THIS_BB_NAME "dis" // name of this brutbox, will be used in OSC path and hostname
 
 #ifdef SERIAL_DEBUG
   #define debugPrint(x)  Serial.print (x)
@@ -30,72 +30,102 @@ static const uint8_t rgbPins[] = {D8, D7, D6};
 unsigned long nextPeriod = 0;
 uint16_t lastValue = 0;
 WiFiUDP udpserver;
+
 #ifdef SHOCK_THREESHOLD
 bool isShock = false;
 #endif
+
+// Moving average variables
+const int numReadings = 10;
+int readings[numReadings];      // the readings from the sensor
+int readIndex = 0;              // the index of the current reading
+int total = 0;                  // the running total
+int average = 0;                // the average
 
 void setup() {
   #ifdef SERIAL_DEBUG
   Serial.begin(115200);
   #endif
-  for (uint8_t i=0; i<3; i++) {pinMode(rgbPins[i], OUTPUT);}
+
+  // Initialize all readings to 0
+  for (int i = 0; i < numReadings; i++) {
+    readings[i] = 0;
+  }
+
+  for (uint8_t i=0; i<3; i++) {
+    pinMode(rgbPins[i], OUTPUT);
+  }
+
   hostname.replace(":", ""); // remove the : from the MAC address
   char hostnameAsChar[hostname.length()+1];
   hostname.toCharArray(hostnameAsChar, hostname.length()+1);
   connectToWifi(hostnameAsChar, SSID, PSK);
   nextPeriod = millis();
-  
 }
 
 void loop() {
-  if (millis()>=nextPeriod) {
-    int currentValue = analogRead(0);
-    if (currentValue < TOLERANCE) currentValue = 0;
-    if (currentValue != lastValue) {
-      if (currentValue < lastValue-TOLERANCE || currentValue > lastValue+TOLERANCE) {
+  if (millis() >= nextPeriod) {
+    // Subtract the last reading from the total
+    total = total - readings[readIndex];
+
+    // Read the sensor and add the new reading
+    readings[readIndex] = analogRead(0);
+
+    // Add the new reading to the total
+    total = total + readings[readIndex];
+
+    // Move to the next index in the array
+    readIndex = (readIndex + 1) % numReadings;
+
+    // Calculate the average
+    average = total / numReadings;
+
+    // Check for tolerance and send data if there's a significant change
+    if (average < TOLERANCE) average = 0;
+    if (average != lastValue) {
+      if (average < lastValue - TOLERANCE || average > lastValue + TOLERANCE) {
         #ifdef SHOCK_THREESHOLD
         isShock = false;
-        if (currentValue - lastValue > SHOCK_THREESHOLD) isShock = true;
+        if (average - lastValue > SHOCK_THREESHOLD) isShock = true;
         #endif
-        sendData(targetIP,oscOutPort, currentValue);
-        nextPeriod = millis()+MAX_RATE;
-        //debugPrint("new value : "); debugPrintln(currentValue);
-        lastValue = currentValue;
+        sendData(targetIP, oscOutPort, average);
+        nextPeriod = millis() + MAX_RATE;
+        lastValue = average;
       }
     }
-    //nextPeriod = millis()+MAX_RATE;
   }
+
   yield();
   ArduinoOTA.handle();
 }
 
 void sendData(IPAddress targetIP, const uint16_t port, uint16_t value) {
   debugPrint("sending data "); debugPrintln(value);
-  String oscAddress = "/"+hostname;
-  char oscAddressChar[oscAddress.length()+1];
-  oscAddress.toCharArray(oscAddressChar, oscAddress.length()+1);
+  String oscAddress = "/" + hostname;
+  char oscAddressChar[oscAddress.length() + 1];
+  oscAddress.toCharArray(oscAddressChar, oscAddress.length() + 1);
   OSCMessage* message = new OSCMessage(oscAddressChar);
-  message->add((float) value/1023.0f);
+  message->add((float) value / 1023.0f);
+
   #ifdef SHOCK_THREESHOLD
-  if (isShock) message->add((float) value/1023.0f);
+  if (isShock) message->add((float) value / 1023.0f);
   debugPrintln("shock");
   #endif
+
   sendOsc(message, targetIP, port);
-  //message->empty();
   delete(message);
-  //lastSent = millis();
 }
 
-void sendOsc(OSCMessage *msg, IPAddress ip, const uint16_t port ){
-    udpserver.beginPacket(ip, port);
-    msg->send(udpserver);
-    udpserver.endPacket();
-    ESP.wdtFeed();
-    yield();
+void sendOsc(OSCMessage *msg, IPAddress ip, const uint16_t port) {
+  udpserver.beginPacket(ip, port);
+  msg->send(udpserver);
+  udpserver.endPacket();
+  ESP.wdtFeed();
+  yield();
 }
 
 void connectToWifi(const char *Hostname, const char* ssid, const char* passphrase) {
-  RGBled(0,0,1); // blue
+  RGBled(0, 0, 1); // blue
   while (true) {
     debugPrintln("\n\nConnecting to " + String(ssid) + " ...");
     WiFi.mode(WIFI_STA);
@@ -103,20 +133,20 @@ void connectToWifi(const char *Hostname, const char* ssid, const char* passphras
     WiFi.hostname(Hostname);
     ESP.wdtFeed();
     yield();
-    if ( WiFi.waitForConnectResult() == WL_CONNECTED ) {break;}
+    if (WiFi.waitForConnectResult() == WL_CONNECTED) {break;}
   }
-  RGBled(0,1,0); // green
+  RGBled(0, 1, 0); // green
   debugPrint("... connected as ");
   debugPrint(Hostname);
   debugPrint(" at ");
   debugPrintln(WiFi.localIP());
-  ArduinoOTA.setPort(8266); //default OTA port
-  ArduinoOTA.setHostname(Hostname);// No authentication by default, can be set with : ArduinoOTA.setPassword((const char *)"passphrase");
+  ArduinoOTA.setPort(8266); // default OTA port
+  ArduinoOTA.setHostname(Hostname);
   ArduinoOTA.begin();
- }
+}
 
- void RGBled(bool red, bool green, bool blue) {
+void RGBled(bool red, bool green, bool blue) {
   digitalWrite(rgbPins[0], red);
   digitalWrite(rgbPins[1], green);
   digitalWrite(rgbPins[2], blue);
- }
+}
